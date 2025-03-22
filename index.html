@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -10,8 +11,9 @@
     <link rel="stylesheet" href="style.css">
     <script src="script.js" defer></script>
 </head>
+
 <body>
-    <div>
+    <div class="container">
         <div class="scores">
             <h1 id="score">000</h1>
             <h1 id="highScore">000</h1>
@@ -23,8 +25,15 @@
                 </div>
             </div>
         </div>
+        <h1 id="instruction-text">RETRO REPTILE <br> Press <span class="spacebar">spacebar</span> to begin</h1>
+        <!-- Mobile Controls -->
+        <div class="mobile-controls">
+            <button id="up">⬆️</button>
+            <button id="left">⬅️</button>
+            <button id="down">⬇️</button>
+            <button id="right">➡️</button>
+        </div>
     </div>
-    <h1 id="instruction-text">RETRO REPTILE <br> Press spacebar to begin</h1>
-    <img id="logo" src="logo.png" width="200px" height="200px" alt="Logo">
 </body>
+
 </html>
