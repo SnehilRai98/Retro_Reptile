@@ -1,210 +1,317 @@
-// Define HTML elements
-const board = document.getElementById('game-board');
-const instructionText = document.getElementById('instruction-text');
-const logo = document.getElementById('logo');
-const score = document.getElementById('score');
-const highScoreText = document.getElementById('highScore');
+// Select HTML elements
+const board = document.getElementById("game-board");
+const instructionText = document.getElementById("instruction-text");
+const score = document.getElementById("score");
+const highScoreText = document.getElementById("highScore");
 
-// Define game variables
+// Game Variables
 const gridSize = 20;
 let snake = [{ x: 10, y: 10 }]; // Initial snake position
-let food = generateFood(); // Generate initial food position
-let highScore = 0; // Initialize high score
-let direction = 'right'; // Initial direction of the snake
-let gameInterval; // Variable to hold game interval
-let gameSpeedDelay = 200; // Initial game speed delay in milliseconds
-let gameStarted = false; // Flag to track if the game is running or not
+let food = generateFood();
+let highScore = 0;
+let direction = "right";
+let nextDirection = "right"; // Prevents instant 180-degree turns
+let gameSpeed = 200;
+let gameStarted = false;
+let gamePaused = false;
+let wrapMode = false; // Toggles between classic and wrap mode
+let lastRenderTime = 0;
+let isGameOver = false;
 
-// Draw game map, snake, food
-function draw() {
-  board.innerHTML = ''; // Clear previous board state
-  drawSnake(); // Draw the snake on the board
-  drawFood(); // Draw the food on the board
-  updateScore(); // Update the current score display
+// Initialize Game Loop
+function startGameLoop(currentTime) {
+  if (!gameStarted || isGameOver) return;
+
+  const timeSinceLastRender = currentTime - lastRenderTime;
+  if (timeSinceLastRender < gameSpeed) {
+    requestAnimationFrame(startGameLoop);
+    return;
+  }
+
+  lastRenderTime = currentTime;
+  if (!gamePaused) {
+    move();
+    checkCollision();
+    draw();
+  }
+
+  requestAnimationFrame(startGameLoop);
 }
 
-// Draw snake function
+// Start Game
+function startGame() {
+  if (gameStarted) return;
+  gameStarted = true;
+  isGameOver = false;
+  instructionText.style.display = "none";
+  resetGame();
+  requestAnimationFrame(startGameLoop);
+}
+
+// Draw the game board
+function draw() {
+  board.innerHTML = "";
+  drawSnake();
+  drawFood();
+  updateScore();
+}
+
+// Draw Snake
 function drawSnake() {
-  snake.forEach((segment) => {
-    const snakeElement = createGameElement('div', 'snake'); // Create snake element
-    setPosition(snakeElement, segment); // Set position of snake element
-    board.appendChild(snakeElement); // Append snake element to the board
+  snake.forEach((segment, index) => {
+    const snakeElement = createGameElement("div", "snake");
+    setPosition(snakeElement, segment);
+    if (index === 0) snakeElement.classList.add("snake-head"); // Different style for head
+    board.appendChild(snakeElement);
   });
 }
 
-// Function to create game elements (snake or food)
+// Create game elements (snake & food)
 function createGameElement(tag, className) {
-  const element = document.createElement(tag); // Create HTML element
-  element.className = className; // Set element's class name (for styling)
-  return element; // Return created element
+  const element = document.createElement(tag);
+  element.className = className;
+  return element;
 }
 
-// Function to set position of snake or food element on the board
+// Set element position
 function setPosition(element, position) {
-  element.style.gridColumn = position.x; // Set column position on the grid
-  element.style.gridRow = position.y; // Set row position on the grid
+  element.style.gridColumnStart = position.x;
+  element.style.gridRowStart = position.y;
 }
 
-// Draw food function
+// Draw Food
 function drawFood() {
   if (gameStarted) {
-    const foodElement = createGameElement('div', 'food'); // Create food element
-    setPosition(foodElement, food); // Set position of food element
-    board.appendChild(foodElement); // Append food element to the board
+    const foodElement = createGameElement("div", "food");
+    setPosition(foodElement, food);
+    board.appendChild(foodElement);
   }
 }
 
-// Generate random position for food within the grid
+// Generate Random Food Position
 function generateFood() {
-  const x = Math.floor(Math.random() * gridSize) + 1; // Random X coordinate
-  const y = Math.floor(Math.random() * gridSize) + 1; // Random Y coordinate
-  return { x, y }; // Return generated food position
+  let newFoodPosition;
+  do {
+    newFoodPosition = {
+      x: Math.floor(Math.random() * gridSize) + 1,
+      y: Math.floor(Math.random() * gridSize) + 1,
+    };
+  } while (isSnakeOnPosition(newFoodPosition));
+  return newFoodPosition;
 }
 
-// Function to move the snake
-function move() {
-  const head = { ...snake[0] }; // Copy the current head position of the snake
+// Check if food spawns on the snake
+function isSnakeOnPosition(position) {
+  return snake.some(
+    (segment) => segment.x === position.x && segment.y === position.y
+  );
+}
 
-  // Move the snake's head based on the current direction
+// Move Snake
+function move() {
+  const head = { ...snake[0] };
+
+  // Change direction
+  direction = nextDirection;
   switch (direction) {
-    case 'up':
+    case "up":
       head.y--;
       break;
-    case 'down':
+    case "down":
       head.y++;
       break;
-    case 'left':
+    case "left":
       head.x--;
       break;
-    case 'right':
+    case "right":
       head.x++;
       break;
   }
 
-  snake.unshift(head); // Add the new head position to the snake
+  // Wrap Mode (Snake appears on opposite side instead of hitting walls)
+  if (wrapMode) {
+    if (head.x < 1) head.x = gridSize;
+    if (head.x > gridSize) head.x = 1;
+    if (head.y < 1) head.y = gridSize;
+    if (head.y > gridSize) head.y = 1;
+  }
 
-  // Check if the snake has eaten the food
+  snake.unshift(head);
+
   if (head.x === food.x && head.y === food.y) {
-    food = generateFood(); // Generate new food position
-    increaseSpeed(); // Increase game speed
-    clearInterval(gameInterval); // Clear previous game interval
-    // Set new game interval for continuous movement
-    gameInterval = setInterval(() => {
-      move(); // Move the snake
-      checkCollision(); // Check for collisions
-      draw(); // Redraw the game board
-    }, gameSpeedDelay);
+    food = generateFood();
+    increaseSpeed();
+    playSound("eat"); // Play sound effect
   } else {
-    snake.pop(); // Remove the tail segment of the snake
+    snake.pop();
   }
 }
 
-// Function to start the game
-function startGame() {
-  gameStarted = true; // Set game as started
-  instructionText.style.display = 'none'; // Hide instruction text
-  logo.style.display = 'none'; // Hide game logo
-  // Set interval for continuous movement and game updates
-  gameInterval = setInterval(() => {
-    move(); // Move the snake
-    checkCollision(); // Check for collisions
-    draw(); // Redraw the game board
-  }, gameSpeedDelay);
-}
+// Handle Keyboard Input
+document.addEventListener("keydown", (event) => {
+  const key = event.key.toLowerCase();
 
-// Event listener for keyboard input (controls)
-function handleKeyPress(event) {
-  if (
-    (!gameStarted && event.code === 'Space') || // Start game with Spacebar
-    (!gameStarted && event.key === ' ')
-  ) {
-    startGame(); // Start the game
+  if (!gameStarted && key === " ") {
+    startGame();
+  } else if (key === "p") {
+    togglePause();
+  } else if (key === "m") {
+    toggleWrapMode();
   } else {
-    // Change direction based on arrow or WASD keys
-    switch (event.key) {
-      case 'w':
-        direction = 'up';
-        break;
-      case 's':
-        direction = 'down';
-        break;
-      case 'a':
-        direction = 'left';
-        break;
-      case 'd':
-        direction = 'right';
-        break;
-    }
+    const newDirection = getDirectionFromKey(key);
+    if (newDirection) nextDirection = newDirection;
   }
+});
+
+// Convert key press to movement direction
+function getDirectionFromKey(key) {
+  const oppositeDirections = {
+    up: "down",
+    down: "up",
+    left: "right",
+    right: "left",
+  };
+  const directions = {
+    w: "up",
+    arrowup: "up",
+    s: "down",
+    arrowdown: "down",
+    a: "left",
+    arrowleft: "left",
+    d: "right",
+    arrowright: "right",
+  };
+
+  if (directions[key] && directions[key] !== oppositeDirections[direction]) {
+    return directions[key];
+  }
+  return null;
 }
 
-// Event listener for keyboard input
-document.addEventListener('keydown', handleKeyPress);
-
-// Function to increase game speed as snake grows
+// Increase Game Speed
 function increaseSpeed() {
-  // Adjust game speed delay based on current speed
-  if (gameSpeedDelay > 150) {
-    gameSpeedDelay -= 5;
-  } else if (gameSpeedDelay > 100) {
-    gameSpeedDelay -= 3;
-  } else if (gameSpeedDelay > 50) {
-    gameSpeedDelay -= 2;
-  } else if (gameSpeedDelay > 25) {
-    gameSpeedDelay -= 1;
-  }
+  if (gameSpeed > 80) gameSpeed -= 5;
 }
 
-// Function to check for collisions with walls or itself
+// Check Collision
 function checkCollision() {
-  const head = snake[0]; // Get current head position of the snake
+  const head = snake[0];
 
-  // Check if snake hits the walls of the game grid
-  if (head.x < 1 || head.x > gridSize || head.y < 1 || head.y > gridSize) {
-    resetGame(); // Reset the game
+  if (
+    !wrapMode &&
+    (head.x < 1 || head.x > gridSize || head.y < 1 || head.y > gridSize)
+  ) {
+    triggerGameOver();
   }
 
-  // Check if snake collides with itself (body segments)
   for (let i = 1; i < snake.length; i++) {
     if (head.x === snake[i].x && head.y === snake[i].y) {
-      resetGame(); // Reset the game
+      triggerGameOver();
     }
   }
 }
 
-// Function to reset the game state
+// Game Over Effect
+function triggerGameOver() {
+  isGameOver = true;
+  gameStarted = false;
+  gamePaused = false;
+  instructionText.innerHTML = "GAME OVER <br> Press Space to Restart";
+  instructionText.style.display = "block";
+  playSound("game-over"); // Play game over sound
+  updateHighScore();
+}
+
+// Reset Game
 function resetGame() {
-  updateHighScore(); // Update the high score if necessary
-  stopGame(); // Stop the game
-  snake = [{ x: 10, y: 10 }]; // Reset snake to initial position
-  food = generateFood(); // Generate new food position
-  direction = 'right'; // Reset direction to right
-  gameSpeedDelay = 200; // Reset game speed delay
-  updateScore(); // Update the current score display
+  snake = [{ x: 10, y: 10 }];
+  food = generateFood();
+  direction = "right";
+  nextDirection = "right";
+  gameSpeed = 200;
 }
 
-// Function to update the current score display
+// Update Score
 function updateScore() {
-  const currentScore = snake.length - 1; // Calculate current score
-  score.textContent = currentScore.toString().padStart(3, '0'); // Update score display
+  const currentScore = snake.length - 1;
+  score.textContent = currentScore.toString().padStart(3, "0");
 }
 
-// Function to stop the game
-function stopGame() {
-  clearInterval(gameInterval); // Clear game interval
-  gameStarted = false; // Set game as not started
-  instructionText.style.display = 'block'; // Show instruction text
-  logo.style.display = 'block'; // Show game logo
-}
-
-// Function to update the high score display
+// Update High Score
 function updateHighScore() {
-  const currentScore = snake.length - 1; // Calculate current score
-
-  // Update high score if current score is higher
+  const currentScore = snake.length - 1;
   if (currentScore > highScore) {
-    highScore = currentScore; // Update high score
-    highScoreText.textContent = highScore.toString().padStart(3, '0'); // Update high score display
+    highScore = currentScore;
+    highScoreText.textContent = highScore.toString().padStart(3, "0");
   }
-  highScoreText.style.display = 'block'; // Show high score text
+  highScoreText.style.display = "block";
+}
+
+// Toggle Pause
+function togglePause() {
+  gamePaused = !gamePaused;
+  instructionText.style.display = gamePaused ? "block" : "none";
+  instructionText.innerHTML = gamePaused ? "PAUSED <br> Press P to Resume" : "";
+}
+
+// Toggle Wrap Mode
+function toggleWrapMode() {
+  wrapMode = !wrapMode;
+  instructionText.innerHTML = wrapMode
+    ? "WRAP MODE: ON <br> Press M to Toggle"
+    : "WRAP MODE: OFF <br> Press M to Toggle";
+  instructionText.style.display = "block";
+  setTimeout(() => {
+    if (gameStarted) instructionText.style.display = "none";
+  }, 2000);
+}
+
+// Play Sound Effects
+function playSound(sound) {
+  const audio = new Audio(`sounds/${sound}.mp3`);
+  audio.play();
+}
+
+// Preload Sounds
+function preloadSounds() {
+  const sounds = ["eat", "game-over"];
+  sounds.forEach((sound) => {
+    new Audio(`sounds/${sound}.mp3`);
+  });
+}
+
+// Initialize
+preloadSounds();
+
+// Mobile Controls
+const upButton = document.getElementById("up");
+const leftButton = document.getElementById("left");
+const downButton = document.getElementById("down");
+const rightButton = document.getElementById("right");
+
+// Add touch events for mobile controls
+upButton.addEventListener("touchstart", () => handleDirectionChange("up"));
+leftButton.addEventListener("touchstart", () => handleDirectionChange("left"));
+downButton.addEventListener("touchstart", () => handleDirectionChange("down"));
+rightButton.addEventListener("touchstart", () => handleDirectionChange("right"));
+
+// Prevent default touch behavior
+document.addEventListener("touchstart", (e) => {
+  if (e.target.classList.contains("mobile-controls")) {
+    e.preventDefault();
+  }
+});
+
+function handleDirectionChange(newDirection) {
+  if (gameStarted) {
+    const oppositeDirections = {
+      up: "down",
+      down: "up",
+      left: "right",
+      right: "left",
+    };
+    if (newDirection !== oppositeDirections[direction]) {
+      nextDirection = newDirection;
+    }
+  }
 }
