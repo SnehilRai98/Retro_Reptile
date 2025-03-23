@@ -302,6 +302,14 @@ document.addEventListener("touchstart", (e) => {
   }
 });
 
+// Start game on touch for mobile users
+board.addEventListener("touchstart", () => {
+  if (!gameStarted) {
+    startGame();
+  }
+});
+
+
 function handleDirectionChange(newDirection) {
   if (gameStarted) {
     const oppositeDirections = {
